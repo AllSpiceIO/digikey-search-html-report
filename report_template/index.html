@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html data-bs-theme="light" lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no">
+    <title>AllSpice Component Report</title>
+    <link rel="stylesheet" href="assets/bootstrap/css/bootstrap.min.css">
+    <link rel="stylesheet" href="assets/fonts/fontawesome-all.min.css">
+    <link rel="stylesheet" href="assets/css/Navbar-Right-Links-Dark-icons.css">
+</head>
+
+<body style="border-color: var(--bs-gray-400);">
+    <div class="row" style="background: var(--bs-secondary-text-emphasis);padding: 10px;margin-bottom: 20px;">
+        <div class="col"><span style="font-size: 1.2em;font-weight: bold;color: var(--bs-body-bg);">&nbsp;<img class="rounded-circle" src="assets/img/leaf_green_bg.png" style="height: 36px;">&nbsp; Component Report - DigiKey API</span></div>
+    </div>
+	{% for part in bom %}
+    <div style="margin-bottom: 20px;">
+        <div style="width: 48px;margin-left: 30px;color: var(--bs-emphasis-color);background: var(--bs-gray-500);text-align: center;height: 26px;"><span style="font-size: 12px;background: var(--bs-gray-500);height: 0px;">{{ loop.index }}</span></div>
+		{% if 'Obsolete' == part.lifecycle_status  %}
+        <div style="margin-left: 30px;margin-right: 30px;border-style: solid;border-color: var(--bs-red);border-radius: 3px;padding-bottom: 0px;">
+        {% elif 'Not For New Designs' == part.lifecycle_status %}
+        <div style="margin-left: 30px;margin-right: 30px;border-style: solid;border-color: var(--bs-red);border-radius: 3px;padding-bottom: 0px;">
+		{% else %}
+        <div style="margin-left: 30px;margin-right: 30px;border-style: solid;border-color: var(--bs-gray-500);border-radius: 3px;padding-bottom: 0px;">
+		{% endif %}
+            <div class="row" style="font-size: 12px;color: rgb(255,255,255);margin-right: 0px;margin-left: 0px;">
+                <div class="col" style="background: var(--bs-secondary-text-emphasis);padding-top: 5px;padding-bottom: 5px;"><span>{{ part.associated_refdes }}</span></div>
+            </div>
+			{% if part.mfr_name is not none %}
+            <div class="row g-0">
+                <div class="col-auto text-center" style="padding-right: 20px;padding-left: 20px;border-style: none;border-color: var(--bs-gray-400);"><img src="{{ part.photo_url }}" style="height: 88px;margin-left: 10px;"><a href="{{ part.datasheet_url }}" target="_blank">
+                        <p style="text-align: center;font-size: 10px;padding-bottom: 5px;"><i class="far fa-file-pdf" style="font-size: 20px;color: var(--bs-form-invalid-color);"></i></p>
+                    </a></div>
+                <div class="col-auto" style="padding-right: 20px;padding-left: 20px;border-style: none;border-color: var(--bs-gray-400);border-left-style: solid;"><span style="font-size: 12px;font-style: italic;font-weight: bold;color: var(--bs-gray-700);">{{ part.mfr_name }}</span><a href="{{ part.product_url }}" style="font-size: 12px;" target="_blank">
+                        <p style="margin-bottom: 0px;font-size: 11px;">{{ part.mfr_part_number }}</p>
+                    </a>
+                    <p style="font-size: 10px;margin-bottom: 10px;">{{ part.part_description }}</p>
+                    <hr style="width: 50%;margin-bottom: 0px;margin-top: 5px;"><span style="font-size: 12px;font-weight: bold;">{{ "{:,}".format(part.qty_available) }}</span><span style="font-size: 12px;display: block;margin-bottom: 0px;">In Stock</span>
+					{% if 'Active' == part.lifecycle_status  %}
+						<hr style="width: 50%;margin-bottom: 0px;margin-top: 5px;"><span style="font-size: 10px;color: var(--bs-green);font-weight: bold;">{{ part.lifecycle_status }}</span>
+					{% elif 'Obsolete' == part.lifecycle_status  %}
+                    	<hr style="width: 50%;margin-bottom: 0px;margin-top: 5px;"><span style="font-size: 10px;color: var(--bs-red);font-weight: bold;">{{ part.lifecycle_status }}</span>
+                    {% elif 'Not For New Designs' == part.lifecycle_status %}
+                    	<hr style="width: 50%;margin-bottom: 0px;margin-top: 5px;"><span style="font-size: 10px;color: var(--bs-red);font-weight: bold;">{{ part.lifecycle_status }}</span>
+                    {% else %}
+						<hr style="width: 50%;margin-bottom: 0px;margin-top: 5px;"><span style="font-size: 10px;color: var(--bs-gray-400);font-weight: bold;">{{ part.lifecycle_status }}</span>
+					{% endif %}
+                </div>
+                <div class="col-auto" style="text-align: right;padding-right: 20px;padding-left: 20px;border-style: none;border-color: var(--bs-gray-400);border-left-style: solid;">
+				{% if part.pricing is not none %}
+					{% for variation in part.pricing %}
+					<span style="font-size: 12px;font-style: italic;">{{ variation['PackageType']['Name'] }}</span>
+                    <div class="table-responsive text-end" style="font-size: 12px;line-height: 3px;">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Qty</th>
+                                    <th>Unit Price</th>
+                                    <th>Ext Price</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+							{% for price_break in variation['StandardPricing'] %}
+                                <tr>
+                                    <td>{{ "{:,}".format(price_break['BreakQuantity']) }}</td>
+                                    <td>{{ "{:,}".format(price_break['UnitPrice']) }}</td>
+                                    <td>{{ "{:,}".format(price_break['TotalPrice']) }}</td>
+                                </tr>
+							{% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+					{% endfor %}
+				{% endif %}
+                </div>
+                <div class="col-auto" style="padding-right: 20px;padding-left: 20px;border-style: none;border-color: var(--bs-gray-400);border-right-style: none;border-left-style: solid;"><span style="font-size: 12px;font-weight: bold;color: var(--bs-body-color);">Operating Temperature</span>
+                    <p style="font-size: 10px;margin-bottom: 0px;">{{ part.operating_temp if part.operating_temp is not none else "-" }}</p>
+                    <hr style="width: 50%;margin-bottom: 0px;margin-top: 5px;"><span style="font-size: 12px;font-weight: bold;">Package / Case</span><span style="font-size: 10px;display: block;margin-bottom: 0px;">{{ part.package_case if part.package_case is not none else "-" }}</span>
+                    <hr style="width: 50%;margin-bottom: 0px;margin-top: 5px;"><span style="font-size: 12px;font-weight: bold;">Device Dimensions</span><span style="font-size: 10px;display: block;margin-bottom: 0px;">{{ part.xy_size if part.xy_size is not none else "-" }}</span>
+                    <hr style="width: 50%;margin-bottom: 0px;margin-top: 5px;"><span style="font-size: 12px;font-weight: bold;">Device Height</span><span style="font-size: 10px;display: block;margin-bottom: 0px;">{{ part.height if part.height is not none else "-" }}</span>
+                    <hr style="width: 50%;margin-bottom: 0px;margin-top: 5px;"><span style="font-size: 12px;font-weight: bold;">Device Thickness</span><span style="font-size: 10px;display: block;margin-bottom: 0px;">{{ part.thickness if part.thickness is not none else "-" }}</span>
+                </div>
+            </div>
+			{% endif %}
+        </div>
+    </div>
+	{% endfor %}
+    <script src="assets/bootstrap/js/bootstrap.min.js"></script>
+</body>
+
+</html>
