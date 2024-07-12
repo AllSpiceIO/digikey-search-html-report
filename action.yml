@@ -1,0 +1,18 @@
+name: "Generate BOM report from querying Digi-Key API"
+description: >
+  Generate a BOM report from querying Digi-Key's API.
+inputs:
+  bom_file:
+    description: "Path to the BOM CSV file"
+    required: true
+runs:
+  using: "docker"
+  image: "Dockerfile"
+  args:
+    - ${{ inputs.bom_file }}
+    - "--output_path"
+    - "${{ github.workspace }}"
+  env:
+    ALLSPICE_AUTH_TOKEN: ${{ github.token }}
+    DIGIKEY_CLIENT_ID: ${{ inputs.digikey_client_id }}
+    DIGIKEY_CLIENT_SECRET: ${{ inputs.digikey_client_secret }}
