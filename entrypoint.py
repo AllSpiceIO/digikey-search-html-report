@@ -2,7 +2,7 @@
 
 from jinja2 import Environment, FileSystemLoader
 from argparse import ArgumentParser
-from contextlib import ExitStack
+from dataclasses import dataclass
 import requests
 import zipfile
 import shutil
@@ -18,26 +18,26 @@ DIGIKEY_API_V4_KEYWORD_SEARCH_ENDPOINT = (
 
 
 ################################################################################
+@dataclass
 class ComponentData:
-    def __init__(self):
-        self.associated_refdes = ""
-        self.part_description = None
-        self.mfr_name = None
-        self.mfr_part_number = None
-        self.photo_url = None
-        self.datasheet_url = None
-        self.product_url = None
-        self.qty_available = None
-        self.lifecycle_status = None
-        self.eol_status = None
-        self.discontinued_status = None
-        self.pricing = None
-        self.package_case = None
-        self.supplier_device_package = None
-        self.operating_temp = None
-        self.xy_size = None
-        self.height = None
-        self.thickness = None
+    associated_refdes: str = ""
+    part_description: str = None
+    mfr_name: str = None
+    mfr_part_number: str = None
+    photo_url: str = None
+    datasheet_url: str = None
+    product_url: str = None
+    qty_available: str = None
+    lifecycle_status: str = None
+    eol_status: str = None
+    discontinued_status: str = None
+    pricing: str = None
+    package_case: str = None
+    supplier_device_package: str = None
+    operating_temp: str = None
+    xy_size: str = None
+    height: str = None
+    thickness: str = None
 
 
 ################################################################################
@@ -210,6 +210,13 @@ if __name__ == "__main__":
         DIGIKEY_API_AUTH_ENDPOINT, digikey_client_id, digikey_client_secret
     )
 
+    # Cannot proceed with search API queries if authentication failed,
+    # exit gracefully.
+    if response_code != 200:
+        print("Authentication failed. Response from server:")
+        print(access_token)
+        print("Exiting...")
+
     # Initialize list of BOM item part data
     bom_items_digikey_data = []
 
@@ -237,6 +244,7 @@ if __name__ == "__main__":
             bom_items_digikey_data.append(part_data)
         # Print out the details of an unsuccessful response
         else:
+            print("DigiKey API search unsuccesful:")
             print(response_code, keyword_search_json)
 
     # Load Jinja with output HTML template
@@ -252,10 +260,9 @@ if __name__ == "__main__":
     # Unzip the JS/CSS assets
     shutil.unpack_archive("/report_template/assets.zip", "/component_report")
     # Write HTML output file
-    with ExitStack() as stack:
-        report_file = stack.enter_context(
-            open("/component_report/index.html", mode="w", encoding="utf-8")
-        )
+    with open(
+        "/component_report/index.html", mode="w", encoding="utf-8"
+    ) as report_file:
         print("- Outputting report")
         report_file.write(template.render(context))
     # Zip the component report as a git workspace artifact
