@@ -2,7 +2,7 @@
 
 from jinja2 import Environment, FileSystemLoader
 from argparse import ArgumentParser
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import requests
 import zipfile
 import shutil
@@ -38,6 +38,12 @@ class ComponentData:
     xy_size: str = None
     height: str = None
     thickness: str = None
+    rohs_status: str = None
+    moisture_sensitivity_level: str = None
+    reach_status: str = None
+    eccn: str = None
+    htsus: str = None
+    categories: list = field(default_factory=list)
 
 
 ################################################################################
@@ -177,6 +183,26 @@ def extract_data_from_digikey_search_response(keyword_search_json):
                     part_data.height = parameter["ValueText"]
                 if "Thickness" in parameter["ParameterText"]:
                     part_data.thickness = parameter["ValueText"]
+        # Get environmental and classification data
+        try:
+            part_data.rohs_status = product_data["Classifications"]["RohsStatus"]
+            part_data.moisture_sensitivity_level = product_data["Classifications"][
+                "MoistureSensitivityLevel"
+            ]
+            part_data.reach_status = product_data["Classifications"]["ReachStatus"]
+            part_data.eccn = product_data["Classifications"]["ExportControlClassNumber"]
+            part_data.htsus = product_data["Classifications"]["HtsusCode"]
+        except KeyError:
+            pass
+        # Get the category chain
+        part_data.categories.append(product_data["Category"]["Name"])
+        child_categories = product_data["Category"]["ChildCategories"]
+        while True:
+            if child_categories:
+                part_data.categories.append(child_categories[0]["Name"])
+                child_categories = child_categories[0]["ChildCategories"]
+            else:
+                break
 
     # Return the extracted part data
     return part_data
@@ -272,3 +298,12 @@ if __name__ == "__main__":
         for root, dirs, files in os.walk("/component_report"):
             for file in files:
                 zipper.write(os.path.join(root, file))
+    # Convert all ComponentData objects in the BOM items DigiKey data
+    # list to dictionaries in preparation for JSON output
+    for idx in range(0, len(bom_items_digikey_data)):
+        bom_items_digikey_data[idx] = bom_items_digikey_data[idx].__dict__
+    # Output the BOM items DigiKey data as a json file
+    with open(
+        "digikey_data_from_bom.json", mode="w", encoding="utf-8"
+    ) as json_output_file:
+        json_output_file.write(json.dumps(bom_items_digikey_data, indent=2))
