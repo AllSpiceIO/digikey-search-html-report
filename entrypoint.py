@@ -212,34 +212,35 @@ def extract_data_from_digikey_search_response(keyword_search_json):
 ################################################################################
 def get_prices_for_target_qty(part_data, qty):
     prices = []
-    # Iterate through list of pricing data
-    for pricing_type in part_data.pricing:
-        # Get the standard pricing for this package type
-        std_pricing = pricing_type["StandardPricing"]
-        # Initialize a pricing dictionary and populate package type
-        price_dict = {}
-        price_dict["package_type"] = pricing_type["PackageType"]
-        # Get price breakpoints for this pricing type
-        breakpoints = [int(stdpricing["BreakQuantity"]) for stdpricing in std_pricing]
-        # Set the breakpoint index to start or end of list, or as None,
-        # depending on the quantity. Set pricing for edge case
-        breakpoint_idx = (
-            0 if qty <= min(breakpoints) else -1 if qty >= max(breakpoints) else None
-        )
-        if breakpoint_idx is not None:
-            price_dict["break_qty"] = std_pricing[breakpoint_idx]["BreakQuantity"]
-            price_dict["price_per_unit"] = std_pricing[breakpoint_idx]["UnitPrice"]
-            price_dict["total_price"] = std_pricing[breakpoint_idx]["UnitPrice"] * qty
-        else:
-            # Populate break quantity and prices the target quantity
-            for breakpoint in std_pricing:
-                # If breakpoint index already set, populate
-                if qty > breakpoint["BreakQuantity"]:
-                    price_dict["break_qty"] = breakpoint["BreakQuantity"]
-                    price_dict["price_per_unit"] = breakpoint["UnitPrice"]
-                    price_dict["total_price"] = breakpoint["UnitPrice"] * qty
-        # Add pricing dict to the list of pricing types
-        prices.append(price_dict)
+    # Iterate through list of pricing data if pricing data exists
+    if part_data.pricing:
+        for pricing_type in part_data.pricing:
+            # Get the standard pricing for this package type
+            std_pricing = pricing_type["StandardPricing"]
+            # Initialize a pricing dictionary and populate package type
+            price_dict = {}
+            price_dict["package_type"] = pricing_type["PackageType"]
+            # Get price breakpoints for this pricing type
+            breakpoints = [int(stdpricing["BreakQuantity"]) for stdpricing in std_pricing]
+            # Set the breakpoint index to start or end of list, or as None,
+            # depending on the quantity. Set pricing for edge case
+            breakpoint_idx = (
+                0 if qty <= min(breakpoints) else -1 if qty >= max(breakpoints) else None
+            )
+            if breakpoint_idx is not None:
+                price_dict["break_qty"] = std_pricing[breakpoint_idx]["BreakQuantity"]
+                price_dict["price_per_unit"] = std_pricing[breakpoint_idx]["UnitPrice"]
+                price_dict["total_price"] = std_pricing[breakpoint_idx]["UnitPrice"] * qty
+            else:
+                # Populate break quantity and prices the target quantity
+                for breakpoint in std_pricing:
+                    # If breakpoint index already set, populate
+                    if qty > breakpoint["BreakQuantity"]:
+                        price_dict["break_qty"] = breakpoint["BreakQuantity"]
+                        price_dict["price_per_unit"] = breakpoint["UnitPrice"]
+                        price_dict["total_price"] = breakpoint["UnitPrice"] * qty
+            # Add pricing dict to the list of pricing types
+            prices.append(price_dict)
     # Return the populated pricing data
     return prices
 
@@ -313,7 +314,7 @@ if __name__ == "__main__":
 
     # Fetch information for all parts in the BOM
     for line_item in bom_line_items:
-        print("- Fetching info for " + line_item[0])
+        print("- Fetching info for " + line_item[0] + "... ", end="")
         # Search for parts in DigiKey by Manufacturer Part Number as keyword
         (response_code, keyword_search_json) = query_digikey_v4_API_keyword_search(
             DIGIKEY_API_V4_KEYWORD_SEARCH_ENDPOINT,
@@ -325,6 +326,7 @@ if __name__ == "__main__":
             "0",
             line_item[0],
         )
+        print("✔" + "\n", end="", flush=True)
         # Process a successful response
         if response_code == 200:
             # Extract the part data from the keyword search response
