@@ -332,7 +332,7 @@ if __name__ == "__main__":
             # Add the associated reference designators
             part_data.associated_refdes = line_item[refdes_col_idx]
             # Get the COGS pricing if PCB quantities specified
-            if args.pcb_quanities:
+            if args.pcb_quantities:
                 cogs_breakdown = {}
                 for quantity in quantities:
                     cogs_breakdown[str(quantity)] = get_prices_for_target_qty(
