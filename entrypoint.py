@@ -287,7 +287,7 @@ if __name__ == "__main__":
 
     # Get the PCB quantities, if specified
     quantities = []
-    if args.pcb_quanities:
+    if args.pcb_quantities:
         try:
             # Get the quantities as a list of integers
             quantities = [int(quantity) for quantity in args.pcb_quantities.split(",")]
