@@ -113,13 +113,11 @@
                     </thead>
                     <tbody>
 						{% for pcb_qty_pricing in package_type['cogs'] %}
-						    {% for qty, pricing in pcb_qty_pricing.items() %}
                             <tr>
-                                <td>{{ "{:,}".format(qty) }}</td>
-                                <td>{{ "{:,}".format(pricing['price_per_unit']) }}</td>
-                                <td>{{ "{:,}".format(pricing['total_price']) }}</td>
+                                <td>{{ "{:,}".format(pcb_qty_pricing['pcb_qty']) }}</td>
+                                <td>{{ "{:,}".format(pcb_qty_pricing['price_per_unit']) }}</td>
+                                <td>{{ "{:,}".format(pcb_qty_pricing['total_price']) }}</td>
                             </tr>
-                            {% endfor %}
 						{% endfor %}
                     </tbody>
                 </table>
