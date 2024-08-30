@@ -119,6 +119,7 @@
                                 <td>{{ "{:,}".format(pricing['price_per_unit']) }}</td>
                                 <td>{{ "{:,}".format(pricing['total_price']) }}</td>
                             </tr>
+                            {% endfor %}
 						{% endfor %}
                     </tbody>
                 </table>
@@ -127,6 +128,7 @@
         {% endfor %}
     </div>
     {% endif %}
+	{% endfor %}
     <script src="assets/bootstrap/js/bootstrap.min.js"></script>
 </body>
 
