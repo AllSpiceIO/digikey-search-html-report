@@ -44,7 +44,7 @@ class ComponentData:
     eccn: str = None
     htsus: str = None
     categories: list = field(default_factory=list)
-    cogs_breakdown: dict = field(default_factory=dict)
+    cogs_breakdown: list = field(default_factory=list)
 
 
 ################################################################################
@@ -210,9 +210,10 @@ def extract_data_from_digikey_search_response(keyword_search_json):
 
 
 ################################################################################
-def get_prices_for_target_qty(part_data, qty):
-    prices = []
-    # Iterate through list of pricing data if pricing data exists
+def get_prices_for_target_qtys(part_data, single_pcb_part_qty, pcb_quantities):
+    # Initialize list of prices to populate and return
+    pcb_qty_prices_by_part_type = []
+    # Iterate through list of quantities and pricing data if pricing data exists
     if part_data.pricing:
         for pricing_type in part_data.pricing:
             # Get the standard pricing for this package type
@@ -220,31 +221,58 @@ def get_prices_for_target_qty(part_data, qty):
             # Process the pricing type if data exists, else skip
             if std_pricing:
                 # Initialize a pricing dictionary and populate package type
-                price_dict = {}
-                price_dict["package_type"] = pricing_type["PackageType"]
+                pricing_for_price_type = {}
+                pricing_for_price_type["package_type"] = pricing_type["PackageType"]
+                pricing_for_price_type["cogs"] = []
                 # Get price breakpoints for this pricing type
-                breakpoints = [int(stdpricing["BreakQuantity"]) for stdpricing in std_pricing]
-                # Set the breakpoint index to start or end of list, or as None,
-                # depending on the quantity. Set pricing for edge case
-                breakpoint_idx = (
-                    0 if qty <= min(breakpoints) else -1 if qty >= max(breakpoints) else None
-                )
-                if breakpoint_idx is not None:
-                    price_dict["break_qty"] = std_pricing[breakpoint_idx]["BreakQuantity"]
-                    price_dict["price_per_unit"] = std_pricing[breakpoint_idx]["UnitPrice"]
-                    price_dict["total_price"] = std_pricing[breakpoint_idx]["UnitPrice"] * qty
-                else:
-                    # Populate break quantity and prices the target quantity
-                    for breakpoint in std_pricing:
-                        # If breakpoint index already set, populate
-                        if qty > breakpoint["BreakQuantity"]:
-                            price_dict["break_qty"] = breakpoint["BreakQuantity"]
-                            price_dict["price_per_unit"] = breakpoint["UnitPrice"]
-                            price_dict["total_price"] = breakpoint["UnitPrice"] * qty
+                breakpoints = [
+                    int(stdpricing["BreakQuantity"]) for stdpricing in std_pricing
+                ]
+                # Iterate through the PCB quantities for COGS breakdown
+                for pcb_qty in pcb_quantities:
+                    # Initialize a dict for populating COGS for this PCB quantity
+                    pricing_for_pcb_qty = {}
+                    # Get the total part count for this PCB quantity
+                    part_qty = single_pcb_part_qty * pcb_qty
+                    # Set the breakpoint index to start or end of list, or as None,
+                    # depending on the quantity. Set pricing for edge case
+                    breakpoint_idx = (
+                        0
+                        if part_qty <= min(breakpoints)
+                        else -1
+                        if part_qty >= max(breakpoints)
+                        else None
+                    )
+                    if breakpoint_idx is not None:
+                        pricing_for_pcb_qty[str(pcb_qty)]["break_qty"] = std_pricing[
+                            breakpoint_idx
+                        ]["BreakQuantity"]
+                        pricing_for_pcb_qty[str(pcb_qty)]["price_per_unit"] = (
+                            std_pricing[breakpoint_idx]["UnitPrice"]
+                        )
+                        pricing_for_pcb_qty[str(pcb_qty)]["total_price"] = (
+                            std_pricing[breakpoint_idx]["UnitPrice"] * part_qty
+                        )
+                    else:
+                        # Populate break quantity and prices the target quantity
+                        for breakpoint in std_pricing:
+                            # If breakpoint index already set, populate
+                            if part_qty >= breakpoint["BreakQuantity"]:
+                                pricing_for_pcb_qty[str(pcb_qty)]["break_qty"] = (
+                                    breakpoint["BreakQuantity"]
+                                )
+                                pricing_for_pcb_qty[str(pcb_qty)]["price_per_unit"] = (
+                                    breakpoint["UnitPrice"]
+                                )
+                                pricing_for_pcb_qty[str(pcb_qty)]["total_price"] = (
+                                    breakpoint["UnitPrice"] * part_qty
+                                )
+                    # Append the pricing for this PCB quantity to the list
+                    pricing_for_price_type["cogs"].append(pricing_for_pcb_qty)
                 # Add pricing dict to the list of pricing types
-                prices.append(price_dict)
+                pcb_qty_prices_by_part_type.append(pricing_for_price_type)
     # Return the populated pricing data
-    return prices
+    return pcb_qty_prices_by_part_type
 
 
 ################################################################################
@@ -289,11 +317,13 @@ if __name__ == "__main__":
         del bom_line_items[0]
 
     # Get the PCB quantities, if specified
-    quantities = []
+    pcb_quantities = []
     if args.pcb_quantities:
         try:
             # Get the quantities as a list of integers
-            quantities = [int(quantity) for quantity in args.pcb_quantities.split(",")]
+            pcb_quantities = [
+                int(quantity) for quantity in args.pcb_quantities.split(",")
+            ]
         except Exception:
             pass
 
@@ -337,13 +367,15 @@ if __name__ == "__main__":
             part_data.associated_refdes = line_item[refdes_col_idx]
             # Get the COGS pricing if PCB quantities specified
             if args.pcb_quantities:
+                # Get the number of components needed for this part
+                part_qty = len(part_data.associated_refdes.split(","))
+                # Initialize a COGS breakdown dict for the different quantities
                 cogs_breakdown = {}
-                for quantity in quantities:
-                    cogs_breakdown[str(quantity)] = get_prices_for_target_qty(
-                        part_data, quantity
-                    )
-                # Add the COGS breakdown to component data
-                part_data.cogs_breakdown = cogs_breakdown
+                # Iterate PCB quantities and get prices for component quantities
+                # at each PCB quantity. Add COGS breakdown to the component data set
+                part_data.cogs_breakdown = get_prices_for_target_qtys(
+                    part_data, part_qty, pcb_quantities
+                )
             # Add the extracted data to the list of BOM items part data
             bom_items_digikey_data.append(part_data)
         # Print out the details of an unsuccessful response

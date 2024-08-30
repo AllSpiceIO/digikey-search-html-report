@@ -95,6 +95,38 @@
 			{% endif %}
         </div>
     </div>
+    {% if part.cogs_breakdown is not none %}
+    <div class="row" style="margin-right: 0px;margin-left: 0px;border-color: var(--bs-tertiary-color);border-left-color: rgb(33, 37, 41);margin-bottom: 10px;">
+        <div class="col" style="padding-left: initial;margin-top: 10px;"><span class="border rounded" style="font-size: 10px;padding-left: 10px;background: #0f375f;padding-bottom: 5px;padding-top: 5px;padding-right: 10px;margin-left: 10px;color: rgb(214,170,44);font-weight: bold;">COGS</span></div>
+    </div>
+    <div class="row" style="margin-right: 0px;margin-left: 0px;border-color: var(--bs-gray-400);border-left-color: rgb(33,37,41);">
+        {% for package_type in part.cogs_breakdown %}
+        <div class="col-auto" style="text-align: right;padding-right: 20px;padding-left: 20px;border-style: none;border-color: var(--bs-gray-400);border-right-style: none;border-left-style: none;"><span style="font-size: 12px;font-style: italic;">package_type["package_type"]["Name"]</span>
+            <div class="table-responsive text-end" style="font-size: 12px;line-height: 3px;">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>PCB Qty</th>
+                            <th>Unit Price</th>
+                            <th>Total Price</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+						{% for pcb_qty_pricing in package_type['cogs'] %}
+						    {% for qty, pricing in pcb_qty_pricing.items() %}
+                            <tr>
+                                <td>{{ "{:,}".format(qty) }}</td>
+                                <td>{{ "{:,}".format(pricing['price_per_unit']) }}</td>
+                                <td>{{ "{:,}".format(pricing['total_price']) }}</td>
+                            </tr>
+						{% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
 	{% endfor %}
     <script src="assets/bootstrap/js/bootstrap.min.js"></script>
 </body>
