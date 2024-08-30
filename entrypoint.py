@@ -230,10 +230,13 @@ def get_prices_for_target_qtys(part_data, single_pcb_part_qty, pcb_quantities):
                 ]
                 # Iterate through the PCB quantities for COGS breakdown
                 for pcb_qty in pcb_quantities:
-                    # Initialize a dict for populating COGS for this PCB quantity
-                    pricing_for_pcb_qty = {"pcb_qty": pcb_qty}
                     # Get the total part count for this PCB quantity
                     part_qty = single_pcb_part_qty * pcb_qty
+                    # Initialize a dict for populating COGS for this PCB quantity
+                    pricing_for_pcb_qty = {
+                        "pcb_qty": pcb_qty,
+                        "total_part_qty": part_qty
+                    }
                     # Set the breakpoint index to start or end of list, or as None,
                     # depending on the quantity. Set pricing for edge case
                     breakpoint_idx = (
