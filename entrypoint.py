@@ -44,6 +44,7 @@ class ComponentData:
     eccn: str = None
     htsus: str = None
     categories: list = field(default_factory=list)
+    cogs_breakdown: list = field(default_factory=list)
 
 
 ################################################################################
@@ -209,12 +210,101 @@ def extract_data_from_digikey_search_response(keyword_search_json):
 
 
 ################################################################################
+def get_prices_for_target_qtys(part_data, single_pcb_part_qty, pcb_quantities):
+    # Initialize list of prices to populate and return
+    pcb_qty_prices_by_part_type = []
+    # Iterate through list of quantities and pricing data if pricing data exists
+    if part_data.pricing:
+        for pricing_type in part_data.pricing:
+            # Get the standard pricing for this package type
+            std_pricing = pricing_type["StandardPricing"]
+            # Process the pricing type if data exists, else skip
+            if std_pricing:
+                # Initialize a pricing dictionary and populate package type
+                pricing_for_price_type = {}
+                pricing_for_price_type["package_type"] = pricing_type["PackageType"]
+                pricing_for_price_type["cogs"] = []
+                # Get price breakpoints for this pricing type
+                breakpoints = [
+                    int(stdpricing["BreakQuantity"]) for stdpricing in std_pricing
+                ]
+                # Iterate through the PCB quantities for COGS breakdown
+                for pcb_qty in pcb_quantities:
+                    # Get the total part count for this PCB quantity
+                    part_qty = single_pcb_part_qty * pcb_qty
+                    # Initialize a dict for populating COGS for this PCB quantity
+                    pricing_for_pcb_qty = {
+                        "pcb_qty": pcb_qty,
+                        "total_part_qty": part_qty
+                    }
+                    # Set the breakpoint index to start or end of list, or as None,
+                    # depending on the quantity. Set pricing for edge case
+                    breakpoint_idx = (
+                        0
+                        if part_qty <= min(breakpoints)
+                        else -1
+                        if part_qty >= max(breakpoints)
+                        else None
+                    )
+                    if breakpoint_idx is not None:
+                        pricing_for_pcb_qty["break_qty"] = std_pricing[
+                            breakpoint_idx
+                        ]["BreakQuantity"]
+                        pricing_for_pcb_qty["price_per_unit"] = (
+                            std_pricing[breakpoint_idx]["UnitPrice"]
+                        )
+                        pricing_for_pcb_qty["total_price"] = (
+                            std_pricing[breakpoint_idx]["UnitPrice"] * part_qty
+                        )
+                    else:
+                        # Populate break quantity and prices the target quantity
+                        for breakpoint in std_pricing:
+                            # If breakpoint index already set, populate
+                            if part_qty >= breakpoint["BreakQuantity"]:
+                                pricing_for_pcb_qty["break_qty"] = (
+                                    breakpoint["BreakQuantity"]
+                                )
+                                pricing_for_pcb_qty["price_per_unit"] = (
+                                    breakpoint["UnitPrice"]
+                                )
+                                pricing_for_pcb_qty["total_price"] = (
+                                    breakpoint["UnitPrice"] * part_qty
+                                )
+                    # Append the pricing for this PCB quantity to the list
+                    pricing_for_price_type["cogs"].append(pricing_for_pcb_qty)
+                # Add pricing dict to the list of pricing types
+                pcb_qty_prices_by_part_type.append(pricing_for_price_type)
+    # Return the populated pricing data
+    return pcb_qty_prices_by_part_type
+
+
+################################################################################
 if __name__ == "__main__":
     # Initialize argument parser
     parser = ArgumentParser()
     parser.add_argument("bom_file", help="Path to the BOM file")
     parser.add_argument(
         "--output_path", help="Path to the directory to output report to"
+    )
+    parser.add_argument(
+        "--pcb_quantities",
+        help=(
+            "A comma-separated list of quantities of PCBs to compute the COGS "
+            + "for. Defaults to '%(default)s'."
+        ),
+        default="1,10,100,500,1000",
+    )
+    parser.add_argument(
+        "--report_type",
+        choices=("html", "md"),
+        help=(
+            "Report type as html or md. html reports are uploaded as artifacts"
+            + " to the Action run whereas md reports are added to the"
+            + " repository's Wiki. Defaults to html."
+        ),
+        default="html",
+        const="html",
+        nargs="?",
     )
     args = parser.parse_args()
 
@@ -228,6 +318,17 @@ if __name__ == "__main__":
         refdes_col_idx = (bom_line_items[0]).index("Designator")
         # Skip the header
         del bom_line_items[0]
+
+    # Get the PCB quantities, if specified
+    pcb_quantities = []
+    if args.pcb_quantities:
+        try:
+            # Get the quantities as a list of integers
+            pcb_quantities = [
+                int(quantity) for quantity in args.pcb_quantities.split(",")
+            ]
+        except Exception:
+            pass
 
     # Authenticate with DigiKey
     digikey_client_id = os.environ.get("DIGIKEY_CLIENT_ID")
@@ -248,7 +349,7 @@ if __name__ == "__main__":
 
     # Fetch information for all parts in the BOM
     for line_item in bom_line_items:
-        print("- Fetching info for " + line_item[0])
+        print("- Fetching info for " + line_item[0] + "... ", end="")
         # Search for parts in DigiKey by Manufacturer Part Number as keyword
         (response_code, keyword_search_json) = query_digikey_v4_API_keyword_search(
             DIGIKEY_API_V4_KEYWORD_SEARCH_ENDPOINT,
@@ -260,12 +361,24 @@ if __name__ == "__main__":
             "0",
             line_item[0],
         )
+        print("✔" + "\n", end="", flush=True)
         # Process a successful response
         if response_code == 200:
             # Extract the part data from the keyword search response
             part_data = extract_data_from_digikey_search_response(keyword_search_json)
             # Add the associated reference designators
             part_data.associated_refdes = line_item[refdes_col_idx]
+            # Get the COGS pricing if PCB quantities specified
+            if args.pcb_quantities:
+                # Get the number of components needed for this part
+                part_qty = len(part_data.associated_refdes.split(","))
+                # Initialize a COGS breakdown dict for the different quantities
+                cogs_breakdown = {}
+                # Iterate PCB quantities and get prices for component quantities
+                # at each PCB quantity. Add COGS breakdown to the component data set
+                part_data.cogs_breakdown = get_prices_for_target_qtys(
+                    part_data, part_qty, pcb_quantities
+                )
             # Add the extracted data to the list of BOM items part data
             bom_items_digikey_data.append(part_data)
         # Print out the details of an unsuccessful response
