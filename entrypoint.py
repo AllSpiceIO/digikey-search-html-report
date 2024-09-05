@@ -235,7 +235,7 @@ def get_prices_for_target_qtys(part_data, single_pcb_part_qty, pcb_quantities):
                     # Initialize a dict for populating COGS for this PCB quantity
                     pricing_for_pcb_qty = {
                         "pcb_qty": pcb_qty,
-                        "total_part_qty": part_qty
+                        "total_part_qty": part_qty,
                     }
                     # Set the breakpoint index to start or end of list, or as None,
                     # depending on the quantity. Set pricing for edge case
@@ -247,12 +247,12 @@ def get_prices_for_target_qtys(part_data, single_pcb_part_qty, pcb_quantities):
                         else None
                     )
                     if breakpoint_idx is not None:
-                        pricing_for_pcb_qty["break_qty"] = std_pricing[
+                        pricing_for_pcb_qty["break_qty"] = std_pricing[breakpoint_idx][
+                            "BreakQuantity"
+                        ]
+                        pricing_for_pcb_qty["price_per_unit"] = std_pricing[
                             breakpoint_idx
-                        ]["BreakQuantity"]
-                        pricing_for_pcb_qty["price_per_unit"] = (
-                            std_pricing[breakpoint_idx]["UnitPrice"]
-                        )
+                        ]["UnitPrice"]
                         pricing_for_pcb_qty["total_price"] = (
                             std_pricing[breakpoint_idx]["UnitPrice"] * part_qty
                         )
@@ -261,12 +261,12 @@ def get_prices_for_target_qtys(part_data, single_pcb_part_qty, pcb_quantities):
                         for breakpoint in std_pricing:
                             # If breakpoint index already set, populate
                             if part_qty >= breakpoint["BreakQuantity"]:
-                                pricing_for_pcb_qty["break_qty"] = (
-                                    breakpoint["BreakQuantity"]
-                                )
-                                pricing_for_pcb_qty["price_per_unit"] = (
-                                    breakpoint["UnitPrice"]
-                                )
+                                pricing_for_pcb_qty["break_qty"] = breakpoint[
+                                    "BreakQuantity"
+                                ]
+                                pricing_for_pcb_qty["price_per_unit"] = breakpoint[
+                                    "UnitPrice"
+                                ]
                                 pricing_for_pcb_qty["total_price"] = (
                                     breakpoint["UnitPrice"] * part_qty
                                 )
