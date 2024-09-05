@@ -9,7 +9,7 @@ Add the following step to your actions:
 
 ```yaml
 - name: Generate HTML component report using DigiKey API
-  uses: https://hub.allspice.io/Actions/digikey-search-html-report.git@v1
+  uses: https://hub.allspice.io/Actions/digikey-search-html-report.git@v3
   with:
     bom_file: bom.csv
     digikey_client_id: ${{ secrets.DIGIKEY_CLIENT_ID }}
