@@ -38,6 +38,9 @@ class ComponentData:
     xy_size: str = None
     height: str = None
     thickness: str = None
+    ratings: str = None
+    grade: str = None
+    qualification: str = None
     rohs_status: str = None
     moisture_sensitivity_level: str = None
     reach_status: str = None
@@ -163,7 +166,9 @@ def extract_data_from_digikey_search_response(keyword_search_json):
         # Initialize part parameter variables
         part_data.package_case = part_data.supplier_device_package = (
             part_data.operating_temp
-        ) = part_data.xy_size = part_data.height = part_data.thickness = None
+        ) = part_data.xy_size = part_data.height = part_data.thickness = (
+            part_data.ratings
+        ) = part_data.qualifications = part_data.grade = None
         # Get product parameter information
         for parameter in product_data["Parameters"]:
             if "ParameterText" in parameter.keys():
@@ -177,13 +182,22 @@ def extract_data_from_digikey_search_response(keyword_search_json):
                 if parameter["ParameterText"] == "Operating Temperature":
                     part_data.operating_temp = parameter["ValueText"]
                 # Get the package XY dimensions
-                if "Size" in parameter["ParameterText"]:
+                if "Dimension" in parameter["ParameterText"]:
                     part_data.xy_size = parameter["ValueText"]
                 # Get the package height or thickness
                 if "Height" in parameter["ParameterText"]:
                     part_data.height = parameter["ValueText"]
-                if "Thickness" in parameter["ParameterText"]:
+                if "Thickness (Max)" in parameter["ParameterText"]:
                     part_data.thickness = parameter["ValueText"]
+                # Get the component ratings
+                if "Ratings" in parameter["ParameterText"]:
+                    part_data.ratings = parameter["ValueText"]
+                # Get the component grade
+                if "Grade" in parameter["ParameterText"]:
+                    part_data.grade = parameter["ValueText"]
+                # Get the component qualification
+                if "Qualification" in parameter["ParameterText"]:
+                    part_data.qualification = parameter["ValueText"]
         # Get environmental and classification data
         try:
             part_data.rohs_status = product_data["Classifications"]["RohsStatus"]
