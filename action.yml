@@ -10,6 +10,10 @@ runs:
   image: "Dockerfile"
   args:
     - ${{ inputs.bom_file }}
+    - "--refdes_column"
+    - ${{ inputs.refdes_column }}
+    - "--part_number_column"
+    - ${{ inputs.part_number_column }}
     - "--output_path"
     - "${{ github.workspace }}"
   env:
