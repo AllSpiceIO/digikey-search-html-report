@@ -7,6 +7,7 @@ import requests
 import zipfile
 import shutil
 import json
+import sys
 import csv
 import os
 
@@ -51,7 +52,7 @@ class ComponentData:
 
 
 ################################################################################
-def get_access_token(url, client_id, client_secret):
+def get_digikey_access_token(url, client_id, client_secret):
     # Populate request header
     headers = {
         "Content-Type": "application/x-www-form-urlencoded",
@@ -67,8 +68,14 @@ def get_access_token(url, client_id, client_secret):
     access_token = (
         response.json()["access_token"] if response.status_code == 200 else None
     )
-    # Return response status code and access token
-    return (response.status_code, access_token)
+    if response.status_code == 200:
+        # Return response status code and access token
+        return (response.status_code, access_token)
+    else:
+        print("Authentication failed. Response from server:")
+        print(new_access_token)
+        print("Exiting...")
+        sys.exit(1)
 
 
 ################################################################################
@@ -366,16 +373,9 @@ if __name__ == "__main__":
     # Authenticate with DigiKey
     digikey_client_id = os.environ.get("DIGIKEY_CLIENT_ID")
     digikey_client_secret = os.environ.get("DIGIKEY_CLIENT_SECRET")
-    (response_code, access_token) = get_access_token(
+    (response_code, access_token) = get_digikey_access_token(
         DIGIKEY_API_AUTH_ENDPOINT, digikey_client_id, digikey_client_secret
     )
-
-    # Cannot proceed with search API queries if authentication failed,
-    # exit gracefully.
-    if response_code != 200:
-        print("Authentication failed. Response from server:")
-        print(access_token)
-        print("Exiting...")
 
     # Initialize list of BOM item part data
     bom_items_digikey_data = []
@@ -420,6 +420,11 @@ if __name__ == "__main__":
                 bom_items_digikey_data.append(part_data)
                 # No need for retries
                 break
+            # Reauthenticate if timed out
+            elif response_code == 401:
+                (retry_response_code, new_access_token) = get_digikey_access_token(
+                    DIGIKEY_API_AUTH_ENDPOINT, digikey_client_id, digikey_client_secret
+                )
             # Print out the details of an unsuccessful response
             else:
                 print("⛔ (" + str(response_code) + ")\n", end="", flush=True)
