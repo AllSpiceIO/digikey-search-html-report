@@ -382,42 +382,49 @@ if __name__ == "__main__":
 
     # Fetch information for all parts in the BOM
     for line_item in bom_line_items:
-        print("- Fetching info for " + line_item[0] + "... ", end="")
-        # Search for parts in DigiKey by Manufacturer Part Number as keyword
-        (response_code, keyword_search_json) = query_digikey_v4_API_keyword_search(
-            DIGIKEY_API_V4_KEYWORD_SEARCH_ENDPOINT,
-            digikey_client_id,
-            access_token,
-            "US",
-            "en",
-            "USD",
-            "0",
-            line_item[mfg_pn_col_idx],
-        )
-        print("✔" + "\n", end="", flush=True)
-        # Process a successful response
-        if response_code == 200:
-            # Extract the part data from the keyword search response
-            part_data = extract_data_from_digikey_search_response(keyword_search_json)
-            # Add the associated reference designators
-            part_data.associated_refdes = line_item[refdes_col_idx]
-            # Get the COGS pricing if PCB quantities specified
-            if args.pcb_quantities:
-                # Get the number of components needed for this part
-                part_qty = len(part_data.associated_refdes.split(","))
-                # Initialize a COGS breakdown dict for the different quantities
-                cogs_breakdown = {}
-                # Iterate PCB quantities and get prices for component quantities
-                # at each PCB quantity. Add COGS breakdown to the component data set
-                part_data.cogs_breakdown = get_prices_for_target_qtys(
-                    part_data, part_qty, pcb_quantities
+        num_retries = 3
+        while num_retries > 0:
+            print("- Fetching info for " + line_item[0] + "... ", end="")
+            # Search for parts in DigiKey by Manufacturer Part Number as keyword
+            (response_code, keyword_search_json) = query_digikey_v4_API_keyword_search(
+                DIGIKEY_API_V4_KEYWORD_SEARCH_ENDPOINT,
+                digikey_client_id,
+                access_token,
+                "US",
+                "en",
+                "USD",
+                "0",
+                line_item[mfg_pn_col_idx],
+            )
+            # Process a successful response
+            if response_code == 200:
+                print("✅" + "\n", end="", flush=True)
+                # Extract the part data from the keyword search response
+                part_data = extract_data_from_digikey_search_response(
+                    keyword_search_json
                 )
-            # Add the extracted data to the list of BOM items part data
-            bom_items_digikey_data.append(part_data)
-        # Print out the details of an unsuccessful response
-        else:
-            print("DigiKey API search unsuccesful:")
-            print(response_code, keyword_search_json)
+                # Add the associated reference designators
+                part_data.associated_refdes = line_item[refdes_col_idx]
+                # Get the COGS pricing if PCB quantities specified
+                if args.pcb_quantities:
+                    # Get the number of components needed for this part
+                    part_qty = len(part_data.associated_refdes.split(","))
+                    # Initialize a COGS breakdown dict for the different quantities
+                    cogs_breakdown = {}
+                    # Iterate PCB quantities and get prices for component quantities
+                    # at each PCB quantity. Add COGS breakdown to the component data set
+                    part_data.cogs_breakdown = get_prices_for_target_qtys(
+                        part_data, part_qty, pcb_quantities
+                    )
+                # Add the extracted data to the list of BOM items part data
+                bom_items_digikey_data.append(part_data)
+                # No need for retries
+                break
+            # Print out the details of an unsuccessful response
+            else:
+                print("⛔ (" + str(response_code) + ")\n", end="", flush=True)
+            # Retry
+            num_retries -= 1
 
     # Load Jinja with output HTML template
     template_env = Environment(loader=FileSystemLoader("/report_template/"))
