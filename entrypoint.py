@@ -298,6 +298,12 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("bom_file", help="Path to the BOM file")
     parser.add_argument(
+        "--refdes_column", help="Name of the reference designator column in the BOM"
+    )
+    parser.add_argument(
+        "--part_number_column", help="Name of the manufacturer part number column in the BOM"
+    )
+    parser.add_argument(
         "--output_path", help="Path to the directory to output report to"
     )
     parser.add_argument(
@@ -322,14 +328,26 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
+    refdes_column = args.refdes_column
+    part_number_column = args.part_number_column
+    if not refdes_column:
+        raise ValueError(
+            "Reference designator column name needs to be specified. Please set refdes_column."
+        )
+    if not part_number_column:
+        raise ValueError(
+            "Manufacturer part number column name needs to be specified. Please set part_number_column."
+        )
+
     # Read the BOM file into list
     with open(args.bom_file, newline="") as bomfile:
         # Comma delimited file with " as quote character to be included
         bomreader = csv.reader(bomfile, delimiter=",", quotechar='"')
         # Save as a list
         bom_line_items = list(bomreader)
-        # Save the index of the designator field
-        refdes_col_idx = (bom_line_items[0]).index("Designator")
+        # Save the index of the designator and manufacturer part number field
+        refdes_col_idx = (bom_line_items[0]).index(refdes_column)
+        mfg_pn_col_idx = (bom_line_items[0]).index(part_number_column)
         # Skip the header
         del bom_line_items[0]
 
@@ -373,7 +391,7 @@ if __name__ == "__main__":
             "en",
             "USD",
             "0",
-            line_item[0],
+            line_item[mfg_pn_col_idx],
         )
         print("✔" + "\n", end="", flush=True)
         # Process a successful response
