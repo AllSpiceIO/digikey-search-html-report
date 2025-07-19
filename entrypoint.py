@@ -301,7 +301,8 @@ if __name__ == "__main__":
         "--refdes_column", help="Name of the reference designator column in the BOM"
     )
     parser.add_argument(
-        "--part_number_column", help="Name of the manufacturer part number column in the BOM"
+        "--part_number_column",
+        help="Name of the manufacturer part number column in the BOM",
     )
     parser.add_argument(
         "--output_path", help="Path to the directory to output report to"
