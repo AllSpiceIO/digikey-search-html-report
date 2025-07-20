@@ -7,6 +7,7 @@ import requests
 import zipfile
 import shutil
 import json
+import sys
 import csv
 import os
 
@@ -38,6 +39,9 @@ class ComponentData:
     xy_size: str = None
     height: str = None
     thickness: str = None
+    ratings: str = None
+    grade: str = None
+    qualification: str = None
     rohs_status: str = None
     moisture_sensitivity_level: str = None
     reach_status: str = None
@@ -48,7 +52,7 @@ class ComponentData:
 
 
 ################################################################################
-def get_access_token(url, client_id, client_secret):
+def get_digikey_access_token(url, client_id, client_secret):
     # Populate request header
     headers = {
         "Content-Type": "application/x-www-form-urlencoded",
@@ -64,8 +68,14 @@ def get_access_token(url, client_id, client_secret):
     access_token = (
         response.json()["access_token"] if response.status_code == 200 else None
     )
-    # Return response status code and access token
-    return (response.status_code, access_token)
+    if response.status_code == 200:
+        # Return response status code and access token
+        return (response.status_code, access_token)
+    else:
+        print("Authentication failed. Response from server:")
+        print(new_access_token)
+        print("Exiting...")
+        sys.exit(1)
 
 
 ################################################################################
@@ -163,7 +173,9 @@ def extract_data_from_digikey_search_response(keyword_search_json):
         # Initialize part parameter variables
         part_data.package_case = part_data.supplier_device_package = (
             part_data.operating_temp
-        ) = part_data.xy_size = part_data.height = part_data.thickness = None
+        ) = part_data.xy_size = part_data.height = part_data.thickness = (
+            part_data.ratings
+        ) = part_data.qualifications = part_data.grade = None
         # Get product parameter information
         for parameter in product_data["Parameters"]:
             if "ParameterText" in parameter.keys():
@@ -177,13 +189,22 @@ def extract_data_from_digikey_search_response(keyword_search_json):
                 if parameter["ParameterText"] == "Operating Temperature":
                     part_data.operating_temp = parameter["ValueText"]
                 # Get the package XY dimensions
-                if "Size" in parameter["ParameterText"]:
+                if "Dimension" in parameter["ParameterText"]:
                     part_data.xy_size = parameter["ValueText"]
                 # Get the package height or thickness
                 if "Height" in parameter["ParameterText"]:
                     part_data.height = parameter["ValueText"]
-                if "Thickness" in parameter["ParameterText"]:
+                if "Thickness (Max)" in parameter["ParameterText"]:
                     part_data.thickness = parameter["ValueText"]
+                # Get the component ratings
+                if "Ratings" in parameter["ParameterText"]:
+                    part_data.ratings = parameter["ValueText"]
+                # Get the component grade
+                if "Grade" in parameter["ParameterText"]:
+                    part_data.grade = parameter["ValueText"]
+                # Get the component qualification
+                if "Qualification" in parameter["ParameterText"]:
+                    part_data.qualification = parameter["ValueText"]
         # Get environmental and classification data
         try:
             part_data.rohs_status = product_data["Classifications"]["RohsStatus"]
@@ -284,6 +305,13 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("bom_file", help="Path to the BOM file")
     parser.add_argument(
+        "--refdes_column", help="Name of the reference designator column in the BOM"
+    )
+    parser.add_argument(
+        "--part_number_column",
+        help="Name of the manufacturer part number column in the BOM",
+    )
+    parser.add_argument(
         "--output_path", help="Path to the directory to output report to"
     )
     parser.add_argument(
@@ -308,14 +336,26 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
+    refdes_column = args.refdes_column
+    part_number_column = args.part_number_column
+    if not refdes_column:
+        raise ValueError(
+            "Reference designator column name needs to be specified. Please set refdes_column."
+        )
+    if not part_number_column:
+        raise ValueError(
+            "Manufacturer part number column name needs to be specified. Please set part_number_column."
+        )
+
     # Read the BOM file into list
     with open(args.bom_file, newline="") as bomfile:
         # Comma delimited file with " as quote character to be included
         bomreader = csv.reader(bomfile, delimiter=",", quotechar='"')
         # Save as a list
         bom_line_items = list(bomreader)
-        # Save the index of the designator field
-        refdes_col_idx = (bom_line_items[0]).index("Designator")
+        # Save the index of the designator and manufacturer part number field
+        refdes_col_idx = (bom_line_items[0]).index(refdes_column)
+        mfg_pn_col_idx = (bom_line_items[0]).index(part_number_column)
         # Skip the header
         del bom_line_items[0]
 
@@ -333,58 +373,63 @@ if __name__ == "__main__":
     # Authenticate with DigiKey
     digikey_client_id = os.environ.get("DIGIKEY_CLIENT_ID")
     digikey_client_secret = os.environ.get("DIGIKEY_CLIENT_SECRET")
-    (response_code, access_token) = get_access_token(
+    (response_code, access_token) = get_digikey_access_token(
         DIGIKEY_API_AUTH_ENDPOINT, digikey_client_id, digikey_client_secret
     )
-
-    # Cannot proceed with search API queries if authentication failed,
-    # exit gracefully.
-    if response_code != 200:
-        print("Authentication failed. Response from server:")
-        print(access_token)
-        print("Exiting...")
 
     # Initialize list of BOM item part data
     bom_items_digikey_data = []
 
     # Fetch information for all parts in the BOM
     for line_item in bom_line_items:
-        print("- Fetching info for " + line_item[0] + "... ", end="")
-        # Search for parts in DigiKey by Manufacturer Part Number as keyword
-        (response_code, keyword_search_json) = query_digikey_v4_API_keyword_search(
-            DIGIKEY_API_V4_KEYWORD_SEARCH_ENDPOINT,
-            digikey_client_id,
-            access_token,
-            "US",
-            "en",
-            "USD",
-            "0",
-            line_item[0],
-        )
-        print("✔" + "\n", end="", flush=True)
-        # Process a successful response
-        if response_code == 200:
-            # Extract the part data from the keyword search response
-            part_data = extract_data_from_digikey_search_response(keyword_search_json)
-            # Add the associated reference designators
-            part_data.associated_refdes = line_item[refdes_col_idx]
-            # Get the COGS pricing if PCB quantities specified
-            if args.pcb_quantities:
-                # Get the number of components needed for this part
-                part_qty = len(part_data.associated_refdes.split(","))
-                # Initialize a COGS breakdown dict for the different quantities
-                cogs_breakdown = {}
-                # Iterate PCB quantities and get prices for component quantities
-                # at each PCB quantity. Add COGS breakdown to the component data set
-                part_data.cogs_breakdown = get_prices_for_target_qtys(
-                    part_data, part_qty, pcb_quantities
+        num_retries = 3
+        while num_retries > 0:
+            print("- Fetching info for " + line_item[0] + "... ", end="")
+            # Search for parts in DigiKey by Manufacturer Part Number as keyword
+            (response_code, keyword_search_json) = query_digikey_v4_API_keyword_search(
+                DIGIKEY_API_V4_KEYWORD_SEARCH_ENDPOINT,
+                digikey_client_id,
+                access_token,
+                "US",
+                "en",
+                "USD",
+                "0",
+                line_item[mfg_pn_col_idx],
+            )
+            # Process a successful response
+            if response_code == 200:
+                print("✅" + "\n", end="", flush=True)
+                # Extract the part data from the keyword search response
+                part_data = extract_data_from_digikey_search_response(
+                    keyword_search_json
                 )
-            # Add the extracted data to the list of BOM items part data
-            bom_items_digikey_data.append(part_data)
-        # Print out the details of an unsuccessful response
-        else:
-            print("DigiKey API search unsuccesful:")
-            print(response_code, keyword_search_json)
+                # Add the associated reference designators
+                part_data.associated_refdes = line_item[refdes_col_idx]
+                # Get the COGS pricing if PCB quantities specified
+                if args.pcb_quantities:
+                    # Get the number of components needed for this part
+                    part_qty = len(part_data.associated_refdes.split(","))
+                    # Initialize a COGS breakdown dict for the different quantities
+                    cogs_breakdown = {}
+                    # Iterate PCB quantities and get prices for component quantities
+                    # at each PCB quantity. Add COGS breakdown to the component data set
+                    part_data.cogs_breakdown = get_prices_for_target_qtys(
+                        part_data, part_qty, pcb_quantities
+                    )
+                # Add the extracted data to the list of BOM items part data
+                bom_items_digikey_data.append(part_data)
+                # No need for retries
+                break
+            # Reauthenticate if timed out
+            elif response_code == 401:
+                (retry_response_code, new_access_token) = get_digikey_access_token(
+                    DIGIKEY_API_AUTH_ENDPOINT, digikey_client_id, digikey_client_secret
+                )
+            # Print out the details of an unsuccessful response
+            else:
+                print("⛔ (" + str(response_code) + ")\n", end="", flush=True)
+            # Retry
+            num_retries -= 1
 
     # Load Jinja with output HTML template
     template_env = Environment(loader=FileSystemLoader("/report_template/"))
